@@ -1,0 +1,176 @@
+#!/bin/bash
+echo "The date is `date`"
+
+credentials="user_credentials.csv"
+questions="question_bank.csv"
+user=""
+
+waiting(){
+ read -p "Press Enter to continue: "
+}
+
+register(){
+ read -p "Enter a username: " username
+
+ if ! echo "$username" | grep -q '^[a-zA-Z0-9]\+$'; then
+   echo "Username can only have letters and numbers"
+   register
+   return
+ fi
+
+ if grep -q "^$username," $credentials; then
+  echo "Username is taken. Try another one."
+  register
+  return
+ fi
+
+ read -s -p "Password: " password
+ echo
+
+ if [ ${#password} -lt 8 ]; then
+  echo "Password must be at least 8 characters"
+  register
+  return
+ fi
+
+ if ! echo "$password" | grep -q '[0-9]'; then
+  echo "Password needs at least 1 number"
+  register
+  return
+ fi
+
+
+ if ! echo "$password" | grep -q '[^a-zA-Z0-9]'; then
+    echo "Password needs at least 1 symbol"
+    register
+    return
+ fi
+
+
+ read -s -p "Re-enter password: " password2
+ echo
+
+ if [ "$password" != "$password2" ]; then
+  echo "Passwords dont match"
+  register
+  return
+ fi
+
+ echo "$username,$password" >> $credentials
+ echo "Registration successful."
+ waiting
+}
+
+
+login() {
+ echo "Survey: Login"
+ read -p "Username: " username
+
+ if ! [[ "$username" =~ ^[a-zA-Z0-9]+$ ]]; then
+  echo "Invalid username."
+  waiting
+  return
+ fi
+
+ find_cred=$(grep "^$username," "$credentials")
+
+ if [ "$find_cred" = "" ]; then
+   echo "Username not found. Register first."
+   waiting
+   return
+  fi
+
+ read -s -p "Password: " password
+ saved_password="${find_cred#*,}"
+
+ if [ "$password" = "$saved_password" ]; then
+  user="$username"
+  echo "You are logged in."
+  survey_menu
+ else
+  echo "Incorrect password."
+   waiting
+ fi
+}
+
+questions() {
+ printf '\n%s\n' "$question"
+ printf 'a. %s\nb. %s\nc. %s\nd. %s\n' "$a" "$b" "$c" "$d"
+}
+
+taking_survey() {
+ answer_file="${user}_answers_file.csv"
+ > "$answer_file"
+
+ while IFS=, read -r question a b c d <&3; do
+  questions
+
+  while true; do
+   read -p "Choose a, b, c, or d: " answer
+   case "$answer" in
+     a|A) text_answer="$a"; break ;;
+     b|B) text_answer="$b"; break ;;
+     c|C) text_answer="$c"; break ;;
+     d|D) text_answer="$d"; break ;;
+     *) echo "Invalid input. Enter a, b, c, or d." ;;
+   esac
+  done
+
+  printf '%s,%s,%s\n' "$question" "$answer" "$text" >> "$answer_file"
+ done 3< "$questions"
+
+ echo "Completed. Your answers have been saved."
+ waiting
+}
+
+view_survey() {
+ answer_file="${user}_answers_file.csv"
+ echo "$user's Answers"
+
+ if [ -f "$answer_file" ]; then
+  while IFS=, read -r question answer text; do
+    printf '\n%s\nYour answer: %s. %s\n' "$question" "$answer" "$text"
+  done < "$answer_file"
+ else
+    echo "You haven't taken the survey yet."
+ fi
+    waiting
+}
+
+survey_menu() {
+ while true; do
+  echo
+  echo "Survey: $user's Survey"
+  echo "1. Take Survey"
+  echo "2. View Survey"
+  echo "3. Exit"
+  echo "4. Log out"
+  read -p "Choose an option: " choice
+
+  case "$choice" in
+   1) taking_survey ;;
+   2) view_survey ;;
+   3) echo "Goodbye!"; exit 0 ;;
+   4) user=""; return ;;
+   *) echo "Invalid input. Choose 1 through 4." ;;
+  esac
+ done
+}
+
+main_menu() {
+ while true; do
+  echo "Main Menu"
+  echo "1. Register"
+  echo "2. Login"
+  echo "3. Exit"
+  read -p "Choose an option: " choice
+   case "$choice" in
+    1) register ;;
+    2) login ;;
+    3) echo "Goodbye!"; exit 0;;
+    *) echo "Invalid input. Choose 1 through 3." ;;
+   esac
+ done
+}
+
+main_menu
